@@ -91,7 +91,7 @@
             var $inline = $(widget.options.selector['attachment-inline'], $widget);
 
             if ($inline.length > 0) {
-                $("[src]", $widget).removeAttr('src');
+                // $("[src]", $widget).removeAttr('src');
                 $inline[0].pause(0);
                 $inline[0].removeAttribute('src');
                 $inline[0].load();
@@ -105,7 +105,7 @@
             }
 
             $widget.removeClass('attachment-expanded');
-            $img.attr('src', $link.attr('data-thumb-url'));
+            $img.attr('src', $link.data('thumb-url') || $img.attr('src'));
             $inline.remove();
             $img.toggle(true);
             $img.parent().css({
@@ -194,7 +194,7 @@
             var $inline = $(widget.options.selector['attachment-inline'], $widget);
 
             $widget.removeClass('attachment-expanded', 'playing');
-            $img.attr('src', $link.attr('data-thumb-url'));
+            $img.attr('src', $link.attr('data-thumb-url') || $img.attr('src'));
             $inline.remove();
             $img.toggle(true);
             $img.parent().addClass('attachment-grow');
@@ -249,16 +249,18 @@
                 return true;
             }
 
-            var $preview = $(widget.options.selector['hover-box']);
+            if ($previewContent.length) {
+                var $preview = $(widget.options.selector['hover-box']);
 
-            widget.previewTimer = setTimeout(function() {
-                $preview.show();
-                $previewContent[0].src = $link.attr('data-download-url');
+                widget.previewTimer = setTimeout(function() {
+                    $preview.show();
+                    $previewContent[0].src = $link.attr('data-download-url');
 
-                if (multimedia) {
-                    $previewContent[0].play();
-                }
-            }, widget.options.preview_delay);
+                    if (multimedia) {
+                        $previewContent[0].play();
+                    }
+                }, widget.options.preview_delay);
+            }
         },
 
         attachmentMediaMouseOut : function(event) {
