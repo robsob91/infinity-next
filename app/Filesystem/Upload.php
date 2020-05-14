@@ -143,7 +143,12 @@ class Upload
     protected function openStorage($storage)
     {
         if(!is_null($storage->banned_at)) {
-            throw new BannedHashException('File is explicitly banned.');
+            if (config('app.debug', false)) {
+                throw new BannedHashException("SHA256 is banned ({$storage->hash}).");
+            }
+            else {
+                throw new BannedHashException('File is banned.');
+            }
         }
 
         $storage->openFile();
@@ -189,20 +194,38 @@ class Upload
         }
 
         $hashes = array_unique($hashes);
+        $hashesBase2 = array_map(function($value) {
+            return str_pad(base_convert($value, 10, 2), 64, "0", STR_PAD_LEFT);
+        }, $hashes);
 
-        FileStorage::whereNotNull('fuzzybanned_at')->whereNotNull('phash')->pluck('phash')->each(function ($theirPhash) use ($hashes) {
-            $theirPhash = gmp_add(gmp_init($theirPhash, 10), gmp_pow(2, 63));
+        // 1:1 hash checks
+        $bannedFile = FileStorage::whereNotNUll('fuzzybanned_at')->whereNotNull('phash')->whereIn('phash', $hashes)->first();
 
-            foreach ($hashes as $filePhash) {
-                $distance = gmp_hamdist($filePhash, $theirPhash);
+        if (!$bannedFile) {
+            foreach ($hashesBase2 as $hashBase2) {
+                $bannedFile = FileStorage::addSelect([
+                        'file_id',
+                        'levenshtein_distance' => \DB::raw("levenshtein_less_equal(\"files\".\"phash\"::bit(64)::text, '{$hashBase2}'::text, 10)")
+                    ])
+                    ->whereNotNull('fuzzybanned_at')->whereNotNull('phash')
+                    ->havingRaw("levenshtein_less_equal(\"files\".\"phash\"::bit(64)::text, '{$hashBase2}'::text, 10) < 10")
+                    ->groupBy('file_id')
+                    ->first();
 
-                if ($distance < 9) {
-                    app('log')->error("Banned image: ".(new IP)->toText()." uploaded a file with a perceptual similarity to banned content (with a hamming distance of {$distance}).");
-                    throw new BannedPhashException("This file has a perceptual similarity to banned content " . (config('app.debug', false) ? "(with a hamming distance of {$distance})" : "") . ".");
-                    return false;
+                if ($bannedFile) {
+                    break;
                 }
             }
-        });
+        }
+
+        if ($bannedFile) {
+            if (config('app.debug', false)) {
+                throw new BannedPhashException("This file has a perceptual similarity to banned content.");
+            }
+            else {
+                throw new BannedPhashException("File is banned.");
+            }
+        }
 
         return gmp_strval($hashes[0], 10);
     }
@@ -270,7 +293,11 @@ class Upload
         if ($thumbnail) {
             $this->processThumbnails();
             $storage->save();
-            $storage->thumbnails()->saveMany($this->thumbnails);
+            $newThumbnails = $this->thumbnails->whereNotIn('file_id', $storage->thumbnails()->pluck('file_id'));
+
+            if ($newThumbnails->count() > 0) {
+                $storage->thumbnails()->saveMany($this->thumbnails);
+            }
         }
         else {
             $storage->save();
@@ -303,17 +330,54 @@ class Upload
         $storage->blob = $blob;
         unset($blob);
 
-        if (!$storage->exists) {
+        if (!$storage->exists || config('app.env') === 'testing') {
             $storage->file_height = $image->height();
             $storage->file_width = $image->width();
             $storage->hash = $hash;
             $storage->mime = "image/png";  ## todo: webp here when apple stops sucking
             $storage->upload_count = 1;
 
-            $trimmed1 = (clone $image)->trim('top-left', null, 20)->encode('jpg', 50);
-            $trimmed2 = (clone $image)->trim('bottom-right', null, 20)->encode('jpg', 50);
+            $trimA = (clone $image)->trim('top-left', null, 20);
+            $trimB = (clone $image)->trim('bottom-right', null, 20);
+            $trimA90 = (clone $trimA)->rotate(90);
+            $trimA180 = (clone $trimA)->rotate(180);
+            $trimA270 = (clone $trimA)->rotate(270);
+            $trimB90 = (clone $trimB)->rotate(90);
+            $trimB180 = (clone $trimB)->rotate(180);
+            $trimB270 = (clone $trimB)->rotate(270);
+            $flipAV = (clone $trimA)->flip('v');
+            $flipAV90 = (clone $trimA90)->flip('v');
+            $flipAV180 = (clone $trimA180)->flip('v');
+            $flipAV270 = (clone $trimA270)->flip('v');
+            $flipBV = (clone $trimB)->flip('v');
+            $flipBV90 = (clone $trimB90)->flip('v');
+            $flipBV180 = (clone $trimB180)->flip('v');
+            $flipBV270 = (clone $trimB270)->flip('v');
 
-            $storage->phash = $this->phash($storage->blob, $trimmed1, $trimmed2);
+            $storage->phash = $this->phash(
+                // trims and rotations
+                $storage->blob,
+                (clone $image)->rotate(90)->encode('jpg', 50),
+                (clone $image)->rotate(180)->encode('jpg', 50),
+                (clone $image)->rotate(270)->encode('jpg', 50),
+                (clone $image)->rotate(270)->encode('jpg', 50),
+                $trimA->encode('jpg', 50),
+                $trimB->encode('jpg', 50),
+                $trimA90->encode('jpg', 50),
+                $trimA180->encode('jpg', 50),
+                $trimA270->encode('jpg', 50),
+                $trimB90->encode('jpg', 50),
+                $trimB180->encode('jpg', 50),
+                $trimB270->encode('jpg', 50),
+                $flipAV->encode('jpg', 50),
+                $flipAV90->encode('jpg', 50),
+                $flipAV180->encode('jpg', 50),
+                $flipAV270->encode('jpg', 50),
+                $flipBV->encode('jpg', 50),
+                $flipBV90->encode('jpg', 50),
+                $flipBV180->encode('jpg', 50),
+                $flipBV270->encode('jpg', 50),
+            );
         }
         else {
             $storage->last_uploaded_at = now();
@@ -325,14 +389,17 @@ class Upload
         return $storage;
     }
 
-    public function processThumbnails()
+    public function processThumbnails($forceThumbnail = false)
     {
         // skip thumbnailing if we already have thumbnails
-        if ($this->storage->exists) {
+        if ($this->storage->exists && !$forceThumbnail) {
             $this->storage->load('thumbnails');
+            $thumbnails = $this->storage->thumbnails->filter(function ($thumbnail) {
+                return $thumbnail->hasFile();
+            });
 
-            if ($this->storage->thumbnails->count() > 0) {
-                $this->thumbnails = $this->storage->thumbnails;
+            if ($thumbnails->count() > 0) {
+                $this->thumbnails = $thumbnails;
                 return $this->thumbnails;
             }
         }
@@ -390,6 +457,8 @@ class Upload
                 $this->processThumbnail($apic['data']);
             }
         }
+
+        unlink($temp);
     }
 
     protected function processThumbnailsForBook()
@@ -442,6 +511,8 @@ class Upload
                 app('log')->error("Encountered an error trying to generate a thumbnail for book {$this->hash}.");
             }
         }
+
+        unlink($temp);
     }
 
     /**
@@ -510,10 +581,10 @@ class Upload
                 '-r 1 '.// FPS, 1 for 1 frame.
                 '-y '.// Overwrite file if it already exists.
                 '-threads 1 '.
-                "{$thumbPath} 2>&1";
+                "{$thumbPath} 2>&1"; // 2>&1 for output
 
         exec($cmd, $output, $returnvalue);
-        app('log')->info($output);
+        //app('log')->info($output);
 
         // Constrain thumbnail to proper dimensions.
         if (filesize($thumbPath)) {
@@ -522,5 +593,8 @@ class Upload
         else {
             app('log')->error("Video thumbnail has no size for file {$this->storage->hash}.");
         }
+
+        unlink($thumbPath);
+        unlink($videoPath);
     }
 }

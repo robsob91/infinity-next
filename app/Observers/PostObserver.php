@@ -7,6 +7,7 @@ use App\FileStorage;
 use App\Post;
 use App\PostAttachment;
 use App\PostCite;
+use App\Events\PostWasCapcoded;
 use App\Events\PostWasCreated;
 use App\Events\PostWasDeleted;
 use App\Events\PostWasModified;
@@ -193,11 +194,21 @@ class PostObserver
         // fire events
         event(new PostWasCreated($post));
 
+        // Log staff posts.
+        if ($post->capcode_id) {
+            event(new PostWasCapcoded($post, $user));
+        }
+
         if ($thread) {
             PostCreate::withChain([new ThreadAutoprune($thread)])->dispatch($post);
         }
         else {
-            PostCreate::dispatch($post);
+            if ($accountable) {
+                PostCreate::dispatch($post);
+            }
+            else {
+                PostCreate::dispatch($post)->delay(now()->addSeconds(30));
+            }
         }
 
         return true;
@@ -316,7 +327,7 @@ class PostObserver
     public function deleted($post)
     {
         // After a post is deleted, update OP's reply count.
-        if (!is_null($post->reply_to)) {
+        if (!is_null($post->thread)) {
             $lastReply = $post->thread->getReplyLast();
 
             if ($lastReply) {

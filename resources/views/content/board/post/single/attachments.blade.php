@@ -1,14 +1,14 @@
 @if ($post->attachments->count())
 @spaceless
-<div class="post-attachments attachment-count-{{ $post->attachments->count() }} {{ $post->attachments->count() > 1 ? "attachments-multi" : "attachments-single" }}">
-    @foreach ($post->attachments as $attachment)
+<div class="post-attachments attachment-count-{{ $post->attachments->count() }} {{ $post->attachments->count() > 1 ? 'attachments-multi' : 'attachments-single' }}">
+    @foreach ($post->attachments as $index => $attachment)
     @if (!isset($catalog) || !$catalog)
     @if ($attachment->isDeleted())
     <div class="attachment attachment-deleted">
         {!! $attachment->toHtml() !!}
     </div>
     @else
-    <div class="attachment attachment-type-{{ $attachment->file->guessExtension() }} {{ $attachment->file->getHtmlClasses() }}" data-widget="attachment" data-file="{{ $attachment->file_id }}" data-thumbnail="{{ $attachment->thumbnail_id }}">
+    <div class="attachment attachment-type-{{ $attachment->file->guessExtension() }} {{ $attachment->file->getHtmlClasses() }} {{ $attachment->is_spoiler ? 'is-spoiler' : 'is-not-spoiler' }} {{ $attachment->is_deleted ? 'is-removed' : 'is-not-removed' }}" data-widget="attachment" data-file="{{ $attachment->file_id }}" data-thumbnail="{{ $attachment->thumbnail_id }}">
         <a class="attachment-link" target="_blank" href="{!! $attachment->getUrl() !!}" data-download-url="{!! $attachment->getUrl() !!}" data-thumb-url="{!! $attachment->getThumbnailUrl() !!}">
             @if ($attachment->file->isVideo())<span class="attachment-collapse-fallback">[-]</span>@endif
             {!! $attachment->toHtml() !!}
@@ -18,23 +18,23 @@
             <div class="actions-anchor actions-attachment actions-up" data-no-instant>
                 <span class="actions-label"><i class="fas fa-angle-up"></i></span>
                 <div class="actions">
-                    <div class="action">
-                        <a href="{{ $attachment->getUnspoilerUrl($board) }}" target="_blank" class="action-link attachment-unspoiler" title="@lang('board.field.unspoiler')">
+                    <div class="action action-file-unspoiler">
+                        <a href="{{ $attachment->getUnspoilerUrl($board) }}" target="_blank" class="action-link" title="@lang('board.field.unspoiler')">
                             <i class="fas fa-question"></i>&nbsp;@lang('board.field.unspoiler')
                         </a>
                     </div>
-                    <div class="action">
-                        <a href="{{ $attachment->getSpoilerUrl($board) }}" target="_blank" class="action-link attachment-spoiler" title="@lang('board.field.spoiler')">
+                    <div class="action action-file-spoiler">
+                        <a href="{{ $attachment->getSpoilerUrl($board) }}" target="_blank" class="action-link" title="@lang('board.field.spoiler')">
                             <i class="fas fa-question"></i>&nbsp;@lang('board.field.spoiler')
                         </a>
                     </div>
-                    <div class="action">
-                        <a href="{{ $attachment->getRemoveUrl($board) }}" target="_blank" class="action-link attachment-remove" title="@lang('board.field.remove')">
+                    <div class="action action-file-remove">
+                        <a href="{{ $attachment->getRemoveUrl($board) }}" target="_blank" class="action-link" title="@lang('board.field.remove')">
                             <i class="fas fa-trash"></i>&nbsp;@lang('board.field.remove')
                         </a>
                     </div>
-                    <div class="action">
-                        <a href="{{ route('panel.site.files.show', $attachment->file->hash) }}" target="_blank" class="action-link attachment-moderate" title="@lang('board.action.moderate')">
+                    <div class="action action-file-moderate">
+                        <a href="{{ route('panel.site.files.show', $attachment->file->hash) }}" target="_blank" class="action-link" title="@lang('board.action.moderate')">
                             <i class="fas fa-exclamation-triangle"></i>&nbsp;@lang('board.action.moderate')
                         </a>
                     </div>
@@ -57,10 +57,10 @@
         </div>
     </div>
     @endif
-    @else
-    <div class="attachment attachment-type-{{ $attachment->file->guessExtension() }}" data-widget="attachment" data-file="{{ $attachment->file_id }}" data-thumbnail="{{ $attachment->thumbnail_id }}">
-        <a class="attachment-link" target="_blank" href="{!! $post->getUrl() !!}" data-instant data-download-url="{!! $attachment->getUrl() !!}" data-thumb-url="{!! $attachment->getThumbnailUrl() !!}">
-            {!! $attachment->toHtml('auto') !!}
+    @else {{-- Catalog --}}
+    <div class="attachment attachment-type-{{ $attachment->file->guessExtension() }} {{ $index === 0 ? 'attachment-first' : 'attachment-not-first' }} {{ $index > 4 ? 'attachment-many' : '' }}" data-widget="attachment" data-file="{{ $attachment->file_id }}" data-thumbnail="{{ $attachment->thumbnail_id }}">
+        <a class="attachment-link" href="{!! $post->getUrl() !!}" data-instant data-download-url="{!! $attachment->getUrl() !!}" data-thumb-url="{!! $attachment->getThumbnailUrl() !!}">
+            {!! $attachment->toHtml($index === 0 ? 150 : 75) !!}
         </a>
     </div>
     @endif

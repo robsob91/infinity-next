@@ -46,8 +46,10 @@ class FileController extends PanelController
             ->whereDoesntHave('thumbnailPivots', function($query) {
                 $query->select(\DB::raw('1'));
             })
-            ->where('last_uploaded_at', '>', now()->subDay())
-            ->limit(100)
+            ->where('last_uploaded_at', '>', now()->subHours(8))
+            ->whereNull('banned_at')
+            ->whereNull('fuzzybanned_at')
+            ->limit(300)
             ->get();
 
         return $this->makeView(static::VIEW_INDEX, [
@@ -108,15 +110,17 @@ class FileController extends PanelController
 
             // NOTE: We are using withTrashed() here so if we need to delete
             // multiple attachments on a single post, they all broadcast correctly.
-            $file->posts()->withTrashed()->each(function ($post) use ($bans, $file) {
-                broadcast(new FileWasBanned($post, $file));
+            $file->posts()->withTrashed()->each(function ($post) use ($bans, $file, $fuzzyban) {
+                if (!$post->trashed()) {
+                    broadcast(new FileWasBanned($post, $file));
+                }
 
                 if (!is_null($post->author_ip) && !$bans->contains('ban_ip_start', $post->author_ip)) {
                     $bans->add([
                         'ban_ip_start' => $post->author_ip,
                         'ban_ip_end' => $post->author_ip,
                         'board_uri' => null,
-                        'expires_at' => now()->addDays(7),
+                        'expires_at' => now()->addDays($fuzzyban ? 7 : 1),
                         'mod_id' => user()->user_id,
                         'post_id' => $post->post_id,
                         'justification' => "Posting banned image.",
@@ -127,10 +131,21 @@ class FileController extends PanelController
             });
          }
 
+         // apply the storage ban
          $file->save();
+
+         // apply the ip ban(s)
          $bans->each(function ($ban) {
              Ban::create($ban);
          });
+
+         // delete all thumbnails and their storage object
+         $file->thumbnails->each(function($thumbnail) {
+             $thumbnail->deleteFile();
+             $thumbnail->forceDelete();
+         });
+
+         // delete off harddrive
          $file->deleteFile();
 
          return redirect()->route('panel.site.files.index');

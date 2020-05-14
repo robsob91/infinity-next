@@ -529,6 +529,11 @@ class FileStorage extends Model
                 return 'flv';
             case 'video/x-matroska':
                 return 'mkv';
+            //#
+            // APPLICATIONS
+            //#
+            case 'application/x-shockwave-flash':
+                return 'swf';
         }
 
 
@@ -698,7 +703,7 @@ class FileStorage extends Model
     public function putFile()
     {
         Storage::makeDirectory($this->getDirectory());
-        Storage::put($this->getPath(), $this->blob);
+        return Storage::put($this->getPath(), $this->blob);
     }
 
     /**
@@ -712,18 +717,24 @@ class FileStorage extends Model
     {
         $ext = $this->guessExtension();
         $url = media_url("static/img/filetypes/{$ext}.svg", false);
-        $thumbnail = $this->thumbnails()->first();;
 
-        if ($this->isImageVector()) {
-            $url = $this->getUrl();
+        if ($this->thumbnailPivots()->count() === 0) {
+            $thumbnail = $this->thumbnails()->first();
+
+            if ($this->isImageVector()) {
+                $url = $this->getUrl();
+            }
+            else if ($this->isAudio() || $this->isImage() || $this->isVideo() || $this->isDocument()) {
+                if ($thumbnail instanceof FileStorage) {
+                    $url = $thumbnail->getUrl();
+                }
+                elseif ($this->isAudio()) {
+                    $url = media_url("static/img/assets/audio.gif", false);
+                }
+            }
         }
-        else if ($this->isAudio() || $this->isImage() || $this->isVideo() || $this->isDocument()) {
-            if ($thumbnail instanceof FileStorage) {
-                $url = $thumbnail->getUrl();
-            }
-            elseif ($this->isAudio()) {
-                $url = media_url("static/img/assets/audio.gif", false);
-            }
+        else {
+            $url = $this->getUrl();
         }
 
         $classes = $this->getHtmlClasses();
@@ -764,7 +775,6 @@ class FileStorage extends Model
      */
     public function scopeWhereOrphan($query)
     {
-        return $query->whereDoesntHave('postAttachments')
-            ->whereDoesntHave('assets');
+        return $query->whereDoesntHave('postAttachments')->whereDoesntHave('assets')->whereDoesntHave('thumbnailPivots')->whereDoesntHave('sourcePivots');
     }
 }

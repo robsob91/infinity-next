@@ -22,7 +22,8 @@ body {
     flex-direction: column;
     min-width: 320px;
 
-    color: rgb(17, 17, 17);
+    color: #{$color-content};
+    color: var(--color-content);
     -webkit-text-size-adjust: 100%;
 
     font-family: $font-stack;
@@ -61,11 +62,12 @@ body {
 }
 
 a, a:link, a:visited, a:hover {
-    color: $color-link;
+    color: #{$color-link};
+    color: var(--color-link);
     text-decoration: none;
 }
     a:hover {
-        color: $color-link-hover;
+        color: var(--color-link-hover);
     }
 
 ol,
@@ -83,14 +85,16 @@ a.button {
     margin-bottom: 0;
 
     background: rgba(255, 255, 255, 0.35);
-    border: 1px solid #34345C;
+    border: 1px solid #{$primary-darker};
+    border-color: var(--primary-darker);
     -moz-box-sizing: border-box;
     box-sizing: border-box;
     outline: 0;
 
     cursor: pointer;
 
-    color: #34345C;
+    color: #{$primary-darker};
+    color: var(--primary-darker);
     font-size: 1.07142857142857em;
     font-weight: bold;
     line-height: 1.4545em;
@@ -100,7 +104,8 @@ a.button {
 }
     button:hover,
     a.button:hover {
-        background: #34345C;
+        background: #{$primary-darker};
+        background: var(--primary-darker);
         color: #FFFFFF;
     }
 
@@ -143,10 +148,15 @@ a.button {
 input,
 textarea,
 select {
-    background: #fff;
+    background: #{$form-background};
+    background: var(--form-background);
+
     border-radius: 0px;
-    border: 1px solid #ccc;
-    color: #2a2a2a;
+    border: 1px solid #{$form-border};
+    border-color: var(--form-border);
+
+    color: #{$form-color};
+    color: var(--form-color);
 }
 
 input:focus,
@@ -243,7 +253,8 @@ table {
     .infobox .infobox-title {
         border-bottom: 1px solid rgba(0, 0, 0, 0.15);
         font-weight: bold;
-        color: #34345C;
+        color: #{$primary-darker};
+        color: var(--primary-darker);
         padding: 0.5em;
     }
     .infobox .infobox-info {

@@ -143,6 +143,13 @@ class AuthServiceProvider extends ServiceProvider
                 : Response::deny('auth.board.cannot_ban');
         });
 
+        Gate::define('global-bumplock', function(User $user)
+        {
+            return $user->permission('board.post.suppress')
+                ? Response::allow()
+                : Response::deny('auth.board.cannot_ban');
+        });
+
         Gate::define('global-delete', function(User $user)
         {
             return $user->permission('board.post.delete.other')
@@ -153,6 +160,13 @@ class AuthServiceProvider extends ServiceProvider
         Gate::define('global-history', function(User $user)
         {
             return $user->permission('board.history')
+                ? Response::allow()
+                : Response::deny('auth.board.cannot_view_history');
+        });
+
+        Gate::define('global-report', function(User $user)
+        {
+            return $user->permission('site.post.report')
                 ? Response::allow()
                 : Response::deny('auth.board.cannot_view_history');
         });

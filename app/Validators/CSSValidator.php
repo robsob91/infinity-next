@@ -87,6 +87,11 @@ class CSSValidator
      */
     protected function isAllowedRule($rule)
     {
+        // --var-name matches
+        if (mb_ereg_match("--[a-zA-Z-]+", $rule)) {
+            return true;
+        }
+
         foreach ($this->allowedRules as $allowedRule) {
             if (strpos($rule, $allowedRule) !== false) {
                 return true;
@@ -229,8 +234,12 @@ class CSSValidator
         }
 
         foreach ($style->getAllValues() as $value) {
-            switch (true) {
-                case $value instanceof \Sabberworm\CSS\Value\URL:
+            if (!is_object($value)) {
+                continue;
+            }
+
+            switch (get_class($value)) {
+                case \Sabberworm\CSS\Value\URL::class:
 
                     $sValue = $this->getURLString($value);
 
@@ -240,7 +249,7 @@ class CSSValidator
 
                     break;
 
-                case $value instanceof \Sabberworm\CSS\Property\Import:
+                case \Sabberworm\CSS\Property\Import::class:
 
                     $oValue = $value->getLocation();
                     $sValue = $this->getURLString($oValue);

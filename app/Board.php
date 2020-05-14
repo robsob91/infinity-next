@@ -478,6 +478,28 @@ class Board extends Model
     }
 
     /**
+     * Generates a class="" string for boards.
+     *
+     * @return string
+     */
+    public function getBodyClassesAttribute() : string
+    {
+        $user = user();
+        $classes = [];
+        $classes[] = $user->permission('board.history', $this) ? 'can-history' : 'can-not-history';
+        $classes[] = $user->permission('board.user.ban.free', $this) ? 'can-ban' : 'can-not-ban';
+        $classes[] = $user->permission('board.post.bumplock', $this) ? 'can-bumplock' : 'can-not-bumplock';
+        $classes[] = $user->permission('board.post.delete.other', $this) ? 'can-delete' : 'can-not-delete';
+        $classes[] = $user->permission('board.post.delete.self', $this) ? 'can-self-delete' : 'can-not-self-delete';
+        $classes[] = $user->permission('board.post.edit.other', $this) ? 'can-edit' : 'can-not-edit';
+        $classes[] = $user->permission('board.post.lock', $this) ? 'can-lock' : 'can-not-lock';
+        $classes[] = $user->permission('board.post.report', $this) ? 'can-report' : 'can-not-report';
+        $classes[] = $user->permission('board.post.sticky', $this) ? 'can-sticky' : 'can-not-sticky';
+
+        return implode(" ", $classes);
+    }
+
+    /**
      * Returns assignable castes.
      *
      * @return collection
@@ -804,14 +826,19 @@ class Board extends Model
     /**
      * Returns a fully qualified URL for a route on this board.
      *
-     * @param string $route Optional route addendum.
-     * @param array $params Optional array of parameters to be added.
-     * @param bool $abs Options indicator if the URL is to be absolute.
+     * @param  string  $route Optional route addendum.
+     * @param  array  $params Optional array of parameters to be added.
+     * @param  bool|null  $abs Options indicator if the URL is to be absolute.
      *
      * @return string
      */
-    public function getUrl($route = "catalog", array $params = [], $abs = true)
+    public function getUrl($route = "catalog", array $params = [], $abs = null)
     {
+        # TODO: Make this true by default if our current domain and the main domain are different.
+        if (is_null($abs)) {
+            $abs = false;
+        }
+
         // Most people like URLs to be /foo/ instead of /foo.
         if ($route === "index" && empty($params)) {
             $trailing_slash = "/";
